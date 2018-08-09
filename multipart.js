@@ -1,8 +1,6 @@
 /**
  	Multipart Parser (Finite State Machine)
-
 	usage:
-
 	var multipart = require('./multipart.js');
 	var body = multipart.DemoData(); 							   // raw body
 	var body = new Buffer(event['body-json'].toString(),'base64'); // AWS case
@@ -12,7 +10,6 @@
 	
 	// each part is:
 	// { filename: 'A.txt', type: 'text/plain', data: <Buffer 41 41 41 41 42 42 42 42> }
-
 	author:  Cristian Salazar (christiansalazarh@gmail.com) www.chileshift.cl
 			 Twitter: @AmazonAwsChile
  */
@@ -33,7 +30,15 @@ exports.Parse = function(multipartBodyBuffer,boundary){
 			{ value: b, writable: true, enumerable: true, configurable: true })
 			return o;
 		}
-		var header = part.header.split(';');		
+		var header = part.header.split(';');
+		
+		if(part.fieldInfo != null && part.fieldInfo != ""){
+			var field = obj(header[1]);
+			Object.defineProperty( field , 'data' ,
+				{ value: part.fieldInfo, writable: true, enumerable: true, configurable: true })
+			return field;
+		}
+		
 		var file = obj(header[2]);
 		var contentType = part.info.split(':')[1].trim();		
 		Object.defineProperty( file , 'type' , 
@@ -47,6 +52,7 @@ exports.Parse = function(multipartBodyBuffer,boundary){
 	var header = '';
 	var info = ''; var state=0; var buffer=[];
 	var allParts = [];
+	var fieldInfo = '';  // this will hold the field info when part is not a file.
 
 	for(i=0;i<multipartBodyBuffer.length;i++){
 		var oneByte = multipartBodyBuffer[i];
@@ -74,6 +80,7 @@ exports.Parse = function(multipartBodyBuffer,boundary){
 			lastline='';
 		}else
 		if((3 == state) && newLineDetected){
+			fieldInfo = lastline; // fieldInfo is exposed in lastline on this step.
 			state=4;
 			buffer=[];
 			lastline='';
@@ -83,7 +90,7 @@ exports.Parse = function(multipartBodyBuffer,boundary){
 			if(((("--"+boundary) == lastline))){
 				var j = buffer.length - lastline.length;
 				var part = buffer.slice(0,j-1);
-				var p = { header : header , info : info , part : part  };
+				var p = { header : header , info : info , part : part, fieldInfo : fieldInfo  };  // adding fieldInfo to the part to process
 				allParts.push(process(p));
 				buffer = []; lastline=''; state=5; header=''; info='';
 			}else{
@@ -135,4 +142,3 @@ exports.DemoData = function(){
 	return (new Buffer(body,'utf-8')); 
 	// returns a Buffered payload, so the it will be treated as a binary content.
 };
-
